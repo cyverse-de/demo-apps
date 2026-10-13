@@ -70,11 +70,11 @@ start_container "$RUN_USER"
 wait_healthy
 pass "Open WebUI healthy after ${HEALTHY_AFTER}s"
 
-"$ENGINE" logs "$NAME" 2>&1 | grep -qF "[entrypoint] Model $MODEL loaded" ||
+"$ENGINE" logs "$NAME" 2>&1 | grep -F "[entrypoint] Model $MODEL loaded" >/dev/null ||
     fail "entrypoint did not report the model as loaded"
 pass "model preloaded by entrypoint"
 
-"$ENGINE" exec "$NAME" ollama list | awk 'NR > 1 { print $1 }' | grep -qxF "$MODEL" ||
+"$ENGINE" exec "$NAME" ollama list | awk 'NR > 1 { print $1 }' | grep -xF "$MODEL" >/dev/null ||
     fail "ollama list does not include $MODEL"
 pass "ollama list includes $MODEL"
 
@@ -105,7 +105,7 @@ echo "== Degraded scenario: unusual UID/GID, Ollama cannot load a model =="
 start_container 54321:54321 -e WARMUP_TIMEOUT=5 -e OLLAMA_MODELS=/nonexistent/models
 wait_healthy
 pass "Open WebUI healthy without a model after ${HEALTHY_AFTER}s"
-"$ENGINE" logs "$NAME" 2>&1 | grep -qF "[entrypoint] WARNING" ||
+"$ENGINE" logs "$NAME" 2>&1 | grep -F "[entrypoint] WARNING" >/dev/null ||
     fail "entrypoint did not log a WARNING for the missing model"
 pass "entrypoint logged a WARNING"
 
