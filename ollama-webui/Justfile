@@ -36,7 +36,7 @@ smoke:
 
 # Lint the shell scripts
 lint:
-    shellcheck entrypoint.sh smoke-test.sh
+    shellcheck entrypoint.sh seed-library.sh smoke-test.sh
 
 # Push the local image to Harbor, tagged with TAG (amd64 only)
 push:

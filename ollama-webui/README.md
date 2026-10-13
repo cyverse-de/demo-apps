@@ -48,7 +48,8 @@ No inputs or parameters are needed.
       ```
       (`vice-operator-token` is in the `app-exposer` repo.)
 - [ ] Launch the app once in QA and run the full script below, including the upload.
-- [ ] Have `sample-data/field-station-report.md` on the presenting laptop.
+- [ ] Have `sample-data/field-station-report.md` on the presenting laptop (for the live upload), or plan to use the
+      pre-indexed **Demo Library** instead (see step 3).
 - [ ] Confirm the answers show citations, and that relaunching gives an empty chat history.
 
 ## Demo script (~5 minutes)
@@ -57,7 +58,8 @@ No inputs or parameters are needed.
    time-limit countdown.
 2. **Private chat (1 min).** Ask something general, such as *"Explain what a sky island is in two sentences."*
    Talking point: *this model runs inside this session, with no external AI service and nothing sent anywhere.*
-3. **Your data (2 min).** Drag `field-station-report.md` into the chat box, then ask:
+3. **Your data (2 min).** Drag `field-station-report.md` into the chat box, or type `#` and pick **Demo Library**
+   (the same report, indexed at startup), then ask:
 
    | Question | Expected answer |
    |---|---|
@@ -79,6 +81,8 @@ correctly.
 
 - `Dockerfile` extends `ghcr.io/open-webui/open-webui:v0.12.0-ollama`, pulls the model into `/opt/ollama/models` at
   build time, and sets offline and single-user mode (`WEBUI_AUTH=False`; vice-proxy handles login).
+- `seed-library.sh` runs in the background at startup and indexes `/opt/sandbox-data` into a **Demo Library**
+  knowledge collection. If it fails it logs a `WARNING` and the live upload still works.
 - `entrypoint.sh` picks writable paths for whatever user VICE runs as, starts Ollama on localhost, preloads the model
   so the first answer is fast, and then runs upstream's `start.sh`. If the model can't load within `WARMUP_TIMEOUT`
   seconds (default 60), it logs a `WARNING` and starts the UI anyway.

@@ -65,6 +65,29 @@ ask() {
     ' _ "$MODEL" "$1"
 }
 
+# wait_library: waits up to 60s for exactly one "Demo Library" collection
+# holding at least one file. Seeding runs in the background after startup.
+wait_library() {
+    local start=$SECONDS state=""
+    while ((SECONDS - start < 60)); do
+        # shellcheck disable=SC2016 # expands inside the container's bash, not here.
+        state=$("$ENGINE" exec "$NAME" bash -c '
+            api=http://127.0.0.1:8080/api/v1
+            token=$(curl -sf -X POST "$api/auths/signin" -H "Content-Type: application/json" \
+                -d "{\"email\": \"\", \"password\": \"\"}" | jq -r .token)
+            ids=$(curl -sf "$api/knowledge/" -H "Authorization: Bearer $token" |
+                jq -r ".items[] | select(.name == \"Demo Library\") | .id")
+            files=0
+            [[ $(wc -w <<<"$ids") -eq 1 ]] &&
+                files=$(curl -sf "$api/knowledge/$ids/files" -H "Authorization: Bearer $token" | jq -r .total)
+            echo "$(wc -w <<<"$ids") $files"
+        ' 2>/dev/null) || true
+        [[ "$state" =~ ^1\ [1-9] ]] && return 0
+        sleep 3
+    done
+    fail "expected one 'Demo Library' with files; got collections/files: '${state}'"
+}
+
 echo "== Main scenario: $IMAGE as $RUN_USER, no network =="
 start_container "$RUN_USER"
 wait_healthy
@@ -77,6 +100,9 @@ pass "model preloaded by entrypoint"
 "$ENGINE" exec "$NAME" ollama list | awk 'NR > 1 { print $1 }' | grep -xF "$MODEL" >/dev/null ||
     fail "ollama list does not include $MODEL"
 pass "ollama list includes $MODEL"
+
+wait_library
+pass "Demo Library pre-indexed with the sample report"
 
 while IFS=$'\t' read -r question keyword; do
     [[ -z "$question" || "$question" == \#* ]] && continue
@@ -100,6 +126,8 @@ pass "stopped gracefully in ${stop_elapsed}s"
 "$ENGINE" start "$NAME" >/dev/null
 wait_healthy
 pass "healthy again after restart in ${HEALTHY_AFTER}s"
+wait_library
+pass "Demo Library still present exactly once after restart"
 
 echo "== Degraded scenario: unusual UID/GID, Ollama cannot load a model =="
 start_container 54321:54321 -e WARMUP_TIMEOUT=5 -e OLLAMA_MODELS=/nonexistent/models

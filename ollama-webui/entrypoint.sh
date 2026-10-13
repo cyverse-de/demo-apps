@@ -53,5 +53,8 @@ log "Starting ollama serve on ${OLLAMA_HOST}"
 ollama serve &
 warm_up || true
 
+# Waits for the UI in the background, then indexes the sample documents.
+/usr/local/bin/seed-library.sh &
+
 log "Starting Open WebUI"
 exec bash /app/backend/start.sh "$@"

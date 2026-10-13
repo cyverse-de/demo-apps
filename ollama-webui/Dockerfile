@@ -33,8 +33,13 @@ RUN set -eu; \
 # just them keeps the layer small (the baked caches are already world-readable).
 RUN find /app/backend/data -type d -exec chmod a+rwx {} +
 
+# Documents pre-indexed into the "Demo Library" collection at startup.
+COPY sample-data/field-station-report.md /opt/sandbox-data/
+
 COPY entrypoint.sh /usr/local/bin/sandbox-entrypoint.sh
-RUN chmod 0755 /usr/local/bin/sandbox-entrypoint.sh
+COPY seed-library.sh /usr/local/bin/seed-library.sh
+RUN chmod 0755 /usr/local/bin/sandbox-entrypoint.sh /usr/local/bin/seed-library.sh \
+ && chmod -R a+rX /opt/sandbox-data
 
 EXPOSE 8080
 ENTRYPOINT ["/usr/local/bin/sandbox-entrypoint.sh"]
