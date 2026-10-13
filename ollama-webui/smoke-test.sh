@@ -104,6 +104,19 @@ pass "ollama list includes $MODEL"
 wait_library
 pass "Demo Library pre-indexed with the sample report"
 
+# Open WebUI's extra model calls (query, title, tags, follow-ups) queue up on
+# a CPU-only Ollama and slow every answer, so the image turns them off.
+# shellcheck disable=SC2016 # expands inside the container's bash, not here.
+"$ENGINE" exec "$NAME" bash -c '
+    api=http://127.0.0.1:8080/api/v1
+    token=$(curl -sf -X POST "$api/auths/signin" -H "Content-Type: application/json" \
+        -d "{\"email\": \"\", \"password\": \"\"}" | jq -r .token)
+    curl -sf "$api/tasks/config" -H "Authorization: Bearer $token" |
+        jq -e "[.ENABLE_RETRIEVAL_QUERY_GENERATION, .ENABLE_TITLE_GENERATION,
+                .ENABLE_TAGS_GENERATION, .ENABLE_FOLLOW_UP_GENERATION] == [false, false, false, false]"
+' >/dev/null || fail "Open WebUI background generation tasks are not all disabled"
+pass "background generation tasks disabled"
+
 while IFS=$'\t' read -r question keyword; do
     [[ -z "$question" || "$question" == \#* ]] && continue
     q_start=$SECONDS
@@ -130,11 +143,21 @@ wait_library
 pass "Demo Library still present exactly once after restart"
 
 echo "== Degraded scenario: unusual UID/GID, Ollama cannot load a model =="
-start_container 54321:54321 -e WARMUP_TIMEOUT=5 -e OLLAMA_MODELS=/nonexistent/models
+start_container 54321:54321 -e WARMUP_TIMEOUT=5 -e OLLAMA_MODELS=/nonexistent/models \
+    -e SANDBOX_DOCS_DIR=/nonexistent/docs
 wait_healthy
 pass "Open WebUI healthy without a model after ${HEALTHY_AFTER}s"
 "$ENGINE" logs "$NAME" 2>&1 | grep -F "[entrypoint] WARNING" >/dev/null ||
     fail "entrypoint did not log a WARNING for the missing model"
 pass "entrypoint logged a WARNING"
+
+seed_start=$SECONDS
+until "$ENGINE" logs "$NAME" 2>&1 | grep -F "[seed-library] WARNING" >/dev/null; do
+    ((SECONDS - seed_start < 60)) || fail "seed-library did not log a WARNING when its documents are missing"
+    sleep 2
+done
+! "$ENGINE" logs "$NAME" 2>&1 | grep -F "[seed-library] added" >/dev/null ||
+    fail "seed-library reported adding documents that do not exist"
+pass "seed-library logged a WARNING and no false success"
 
 echo "All smoke checks passed."

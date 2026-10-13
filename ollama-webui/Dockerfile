@@ -4,6 +4,8 @@ FROM ghcr.io/open-webui/open-webui:v0.12.0-ollama
 
 ARG MODEL=llama3.2:3b
 
+# The ENABLE_*_GENERATION flags turn off Open WebUI's extra model calls per question
+# (query, title, tags, follow-ups), which queue ahead of the next answer on a CPU-only Ollama.
 ENV OLLAMA_MODELS=/opt/ollama/models \
     OLLAMA_HOST=127.0.0.1:11434 \
     OLLAMA_KEEP_ALIVE=-1 \
@@ -16,7 +18,11 @@ ENV OLLAMA_MODELS=/opt/ollama/models \
     OFFLINE_MODE=True \
     HF_HUB_OFFLINE=1 \
     TRANSFORMERS_OFFLINE=1 \
-    USE_OLLAMA_DOCKER=false
+    USE_OLLAMA_DOCKER=false \
+    ENABLE_RETRIEVAL_QUERY_GENERATION=False \
+    ENABLE_TITLE_GENERATION=False \
+    ENABLE_TAGS_GENERATION=False \
+    ENABLE_FOLLOW_UP_GENERATION=False
 
 # Pull the chat model at build time so the sandbox never downloads anything.
 RUN set -eu; \
