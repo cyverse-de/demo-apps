@@ -1,0 +1,51 @@
+set shell := ["bash", "-euo", "pipefail", "-c"]
+
+# Podman if installed, otherwise Docker. Override with CONTAINER_ENGINE=docker (or podman).
+engine := env("CONTAINER_ENGINE", `command -v podman >/dev/null 2>&1 && echo podman || echo docker`)
+
+registry := "harbor.cyverse.org/de"
+image := "ollama-webui-demo"
+MODEL := "llama3.2:3b"
+# VICE nodes are amd64. For quick local testing on Apple Silicon, use PLATFORM=linux/arm64 (never push it).
+PLATFORM := "linux/amd64"
+TAG := `date +%Y-%m-%d`
+
+# List recipes
+default:
+    @just --list
+
+# Print the container engine that will be used
+show-engine:
+    @echo {{ engine }}
+
+# Build the image (tagged ollama-webui-demo:latest locally)
+build:
+    {{ engine }} build --platform {{ PLATFORM }} --build-arg MODEL={{ MODEL }} -t {{ image }}:latest .
+
+# Run locally on http://localhost:8080 as a non-root user, like VICE
+run:
+    {{ engine }} run --rm -it --platform {{ PLATFORM }} --user 1000:0 -p 8080:8080 {{ image }}:latest
+
+# Open a shell in the image
+shell:
+    {{ engine }} run --rm -it --platform {{ PLATFORM }} --user 1000:0 --entrypoint bash {{ image }}:latest
+
+# Run the smoke test against the local image
+smoke:
+    CONTAINER_ENGINE={{ engine }} IMAGE={{ image }}:latest MODEL={{ MODEL }} ./smoke-test.sh
+
+# Lint the shell scripts
+lint:
+    shellcheck entrypoint.sh smoke-test.sh
+
+# Push the local image to Harbor, tagged with TAG (amd64 only)
+push:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    arch=$({{ engine }} image inspect --format '{{{{.Architecture}}' {{ image }}:latest)
+    if [[ "$arch" != "amd64" ]]; then
+        echo "Refusing to push: local image is $arch, but VICE nodes need amd64. Rebuild with 'just build'." >&2
+        exit 1
+    fi
+    {{ engine }} tag {{ image }}:latest {{ registry }}/{{ image }}:{{ TAG }}
+    {{ engine }} push {{ registry }}/{{ image }}:{{ TAG }}
